@@ -32,16 +32,17 @@ function StaffDashboard() {
   const { mutate: punchOut, isPending: punchingOut } = usePunchOut();
   const { data: history } = useAttendanceHistory({ limit: 5 });
   const { data: balances } = useLeaveBalance();
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [elapsed, setElapsed] = useState<string>("");
 
   useEffect(() => {
+    setCurrentTime(new Date());
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
-    if (today?.entryTime && !today?.exitTime) {
+    if (today?.entryTime && !today?.exitTime && currentTime) {
       const entry = new Date(today.entryTime);
       const dur = intervalToDuration({ start: entry, end: currentTime });
       const parts = [];
@@ -100,6 +101,7 @@ function StaffDashboard() {
                   borderRadius: "50%",
                   border: "2px solid rgba(239,68,68,0.3)",
                   animation: "pulse-ring 2s ease-in-out infinite",
+                  pointerEvents: "none",
                 }}
               />
               <div
@@ -109,6 +111,7 @@ function StaffDashboard() {
                   borderRadius: "50%",
                   border: "2px solid rgba(239,68,68,0.15)",
                   animation: "pulse-ring 2s ease-in-out infinite 0.5s",
+                  pointerEvents: "none",
                 }}
               />
             </>
@@ -122,6 +125,7 @@ function StaffDashboard() {
                   borderRadius: "50%",
                   border: "2px solid rgba(34,197,94,0.3)",
                   animation: "pulse-ring 2s ease-in-out infinite",
+                  pointerEvents: "none",
                 }}
               />
               <div
@@ -131,6 +135,7 @@ function StaffDashboard() {
                   borderRadius: "50%",
                   border: "2px solid rgba(34,197,94,0.15)",
                   animation: "pulse-ring 2s ease-in-out infinite 0.5s",
+                  pointerEvents: "none",
                 }}
               />
             </>
@@ -174,10 +179,10 @@ function StaffDashboard() {
         {/* Time info */}
         <div style={{ textAlign: "center" }}>
           <p style={{ margin: 0, fontSize: "28px", fontWeight: 300, color: "#E8E8E8", letterSpacing: "0.05em", fontVariantNumeric: "tabular-nums" }}>
-            {format(currentTime, "HH:mm:ss")}
+            {currentTime ? format(currentTime, "HH:mm:ss") : "--:--:--"}
           </p>
           <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#52525B" }}>
-            {format(currentTime, "EEEE, d MMMM yyyy")}
+            {currentTime ? format(currentTime, "EEEE, d MMMM yyyy") : ""}
           </p>
         </div>
 

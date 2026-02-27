@@ -24,7 +24,10 @@ export async function POST() {
 
     // Server-side timestamp — NEVER trust client
     const now = new Date();
-    const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    const todayDate = new Date(`${y}-${m}-${d}T00:00:00.000Z`);
 
     // Find the active session
     const activeSession = await prisma.attendance.findFirst({

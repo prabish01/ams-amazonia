@@ -31,12 +31,9 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Public paths (including seed endpoint — protected by seedKey, not session)
-  const publicPaths = ["/login", "/invite", "/api/seed"];
+  // Public paths (including seed/setup endpoints — protected by seedKey, not session)
+  const publicPaths = ["/login", "/invite", "/api/seed", "/api/setup-auth"];
   if (publicPaths.some((p) => pathname.startsWith(p))) {
-    if (user) {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
-    }
     return supabaseResponse;
   }
 

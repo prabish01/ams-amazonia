@@ -2,12 +2,13 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths } from "date-fns";
-import { Clock, CalendarDays, ChevronDown } from "lucide-react";
+import { Clock, CalendarDays, ChevronDown, ShieldAlert, AlertCircle } from "lucide-react";
 import { Card, CardHeader, CardBody } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SkeletonTable } from "@/components/ui/skeleton";
 import { useTodayAttendance, usePunchIn, usePunchOut, useAttendanceHistory } from "@/hooks/use-attendance";
+import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 
 type Period = "this-week" | "last-week" | "this-month" | "last-month";
@@ -50,25 +51,29 @@ const periodLabels: Record<Period, string> = {
 };
 
 export default function AttendancePage() {
+  const { data: auth } = useAuth();
   const [period, setPeriod] = useState<Period>("this-week");
   const [periodOpen, setPeriodOpen] = useState(false);
   const { start, end } = getPeriodDates(period);
 
-  const { data: today, isLoading: todayLoading } = useTodayAttendance();
-  const { mutate: punchIn, isPending: punchingIn } = usePunchIn();
-  const { mutate: punchOut, isPending: punchingOut } = usePunchOut();
+  const isSuperAdmin = auth?.role === "SUPER_ADMIN";
+
+  const { data: today, isLoading: todayLoading, error: todayError } = useTodayAttendance();
+  const { mutate: punchIn, isPending: punchingIn, error: punchInError } = usePunchIn();
+  const { mutate: punchOut, isPending: punchingOut, error: punchOutError } = usePunchOut();
   const { data: history, isLoading: historyLoading } = useAttendanceHistory({ start, end });
 
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [elapsed, setElapsed] = useState("");
 
   useEffect(() => {
+    setCurrentTime(new Date());
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
-    if (today?.entryTime && !today?.exitTime) {
+    if (today?.entryTime && !today?.exitTime && currentTime) {
       const entry = new Date(today.entryTime);
       const diff = currentTime.getTime() - entry.getTime();
       const h = Math.floor(diff / 3600000);
@@ -86,7 +91,7 @@ export default function AttendancePage() {
     if (isClockedIn) {
       punchOut(undefined, {
         onSuccess: () => toast.success("Clocked out successfully"),
-        onError: () => toast.error("Failed to clock out"),
+        onError: (err: Error) => toast.error(err.message || "Failed to clock out"),
       });
     } else {
       punchIn(undefined, {
@@ -122,84 +127,128 @@ export default function AttendancePage() {
           gap: "20px",
         }}
       >
-        <div style={{ position: "relative" }}>
-          {!isClockedIn && (
-            <div style={{ position: "absolute", inset: -12, borderRadius: "50%", border: "2px solid rgba(34,197,94,0.25)", animation: "pulse-ring 2.5s ease-in-out infinite" }} />
-          )}
-          {isClockedIn && (
-            <div style={{ position: "absolute", inset: -12, borderRadius: "50%", border: "2px solid rgba(239,68,68,0.25)", animation: "pulse-ring 2.5s ease-in-out infinite" }} />
-          )}
-          <button
-            onClick={handlePunch}
-            disabled={punchingIn || punchingOut || todayLoading}
-            style={{
-              width: 140,
-              height: 140,
-              borderRadius: "50%",
-              backgroundColor: isClockedIn ? "rgba(239,68,68,0.1)" : "rgba(34,197,94,0.1)",
-              border: `3px solid ${isClockedIn ? "#EF4444" : "#22C55E"}`,
-              cursor: punchingIn || punchingOut || todayLoading ? "not-allowed" : "pointer",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-              color: isClockedIn ? "#EF4444" : "#22C55E",
-              transition: "transform 0.1s ease",
-              boxShadow: isClockedIn
-                ? "0 0 32px rgba(239,68,68,0.12)"
-                : "0 0 32px rgba(34,197,94,0.12)",
-            }}
-            onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.95)"; }}
-            onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
-          >
-            {punchingIn || punchingOut ? (
-              <div style={{ width: 28, height: 28, border: `2.5px solid currentColor`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-            ) : (
-              <Clock size={32} strokeWidth={1.5} />
-            )}
-            <span style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.06em" }}>
-              {isClockedIn ? "PUNCH OUT" : "PUNCH IN"}
-            </span>
-          </button>
-        </div>
-
-        <div style={{ textAlign: "center" }}>
-          <p style={{ margin: 0, fontSize: "26px", fontWeight: 300, color: "#E8E8E8", fontVariantNumeric: "tabular-nums" }}>
-            {format(currentTime, "HH:mm:ss")}
-          </p>
-          <p style={{ margin: "3px 0 0", fontSize: "12px", color: "#52525B" }}>
-            {format(currentTime, "EEEE, d MMMM yyyy")}
-          </p>
-        </div>
-
-        {isClockedIn && today?.entryTime && (
-          <div
-            style={{
-              display: "flex",
-              gap: "20px",
-              padding: "12px 24px",
-              backgroundColor: "#1A1A1E",
-              borderRadius: "10px",
-              border: "1px solid #27272A",
-            }}
-          >
-            <div style={{ textAlign: "center" }}>
-              <p style={{ margin: 0, fontSize: "11px", color: "#52525B", textTransform: "uppercase", letterSpacing: "0.06em" }}>Entry</p>
-              <p style={{ margin: "4px 0 0", fontSize: "16px", fontWeight: 700, color: "#22C55E" }}>
-                {format(new Date(today.entryTime), "HH:mm")}
-              </p>
+        {isSuperAdmin ? (
+          /* Super Admin cannot punch in — they manage the system */
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", padding: "8px 0" }}>
+            <div style={{
+              width: 80, height: 80, borderRadius: "50%",
+              backgroundColor: "rgba(245,166,35,0.08)",
+              border: "2px solid rgba(245,166,35,0.3)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <ShieldAlert size={32} style={{ color: "#F5A623" }} />
             </div>
-            <div style={{ width: 1, backgroundColor: "#27272A" }} />
             <div style={{ textAlign: "center" }}>
-              <p style={{ margin: 0, fontSize: "11px", color: "#52525B", textTransform: "uppercase", letterSpacing: "0.06em" }}>Elapsed</p>
-              <p style={{ margin: "4px 0 0", fontSize: "16px", fontWeight: 700, color: "#E8E8E8", fontVariantNumeric: "tabular-nums" }}>
-                {elapsed}
+              <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#F5A623" }}>Super Admin Account</p>
+              <p style={{ margin: "6px 0 0", fontSize: "13px", color: "#52525B", maxWidth: 320 }}>
+                Super Admin accounts are not assigned to a restaurant and cannot punch in or out.
+                Log in as a restaurant admin or staff member to use this feature.
               </p>
             </div>
           </div>
+        ) : (
+          <>
+            <div style={{ position: "relative" }}>
+              {!isClockedIn && (
+                <div style={{ position: "absolute", inset: -12, borderRadius: "50%", border: "2px solid rgba(34,197,94,0.25)", animation: "pulse-ring 2.5s ease-in-out infinite", pointerEvents: "none" }} />
+              )}
+              {isClockedIn && (
+                <div style={{ position: "absolute", inset: -12, borderRadius: "50%", border: "2px solid rgba(239,68,68,0.25)", animation: "pulse-ring 2.5s ease-in-out infinite", pointerEvents: "none" }} />
+              )}
+              <button
+                onClick={handlePunch}
+                disabled={punchingIn || punchingOut || todayLoading}
+                style={{
+                  width: 140,
+                  height: 140,
+                  borderRadius: "50%",
+                  backgroundColor: isClockedIn ? "rgba(239,68,68,0.1)" : "rgba(34,197,94,0.1)",
+                  border: `3px solid ${isClockedIn ? "#EF4444" : "#22C55E"}`,
+                  cursor: punchingIn || punchingOut || todayLoading ? "not-allowed" : "pointer",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  color: isClockedIn ? "#EF4444" : "#22C55E",
+                  transition: "transform 0.1s ease",
+                  boxShadow: isClockedIn
+                    ? "0 0 32px rgba(239,68,68,0.12)"
+                    : "0 0 32px rgba(34,197,94,0.12)",
+                }}
+                onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.95)"; }}
+                onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+              >
+                {punchingIn || punchingOut ? (
+                  <div style={{ width: 28, height: 28, border: `2.5px solid currentColor`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                ) : (
+                  <Clock size={32} strokeWidth={1.5} />
+                )}
+                <span style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.06em" }}>
+                  {isClockedIn ? "PUNCH OUT" : "PUNCH IN"}
+                </span>
+              </button>
+            </div>
+
+            {isClockedIn && today?.entryTime && (
+              <div
+                style={{
+                  display: "flex",
+                  gap: "20px",
+                  padding: "12px 24px",
+                  backgroundColor: "#1A1A1E",
+                  borderRadius: "10px",
+                  border: "1px solid #27272A",
+                }}
+              >
+                <div style={{ textAlign: "center" }}>
+                  <p style={{ margin: 0, fontSize: "11px", color: "#52525B", textTransform: "uppercase", letterSpacing: "0.06em" }}>Entry</p>
+                  <p style={{ margin: "4px 0 0", fontSize: "16px", fontWeight: 700, color: "#22C55E" }}>
+                    {format(new Date(today.entryTime), "HH:mm")}
+                  </p>
+                </div>
+                <div style={{ width: 1, backgroundColor: "#27272A" }} />
+                <div style={{ textAlign: "center" }}>
+                  <p style={{ margin: 0, fontSize: "11px", color: "#52525B", textTransform: "uppercase", letterSpacing: "0.06em" }}>Elapsed</p>
+                  <p style={{ margin: "4px 0 0", fontSize: "16px", fontWeight: 700, color: "#E8E8E8", fontVariantNumeric: "tabular-nums" }}>
+                    {elapsed}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Inline error/status feedback */}
+            {todayLoading && (
+              <p style={{ margin: 0, fontSize: "12px", color: "#52525B" }}>Loading today&apos;s status…</p>
+            )}
+            {todayError && (
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px", backgroundColor: "rgba(239,68,68,0.08)", borderRadius: "8px", border: "1px solid rgba(239,68,68,0.2)" }}>
+                <AlertCircle size={14} style={{ color: "#EF4444", flexShrink: 0 }} />
+                <p style={{ margin: 0, fontSize: "12px", color: "#EF4444" }}>
+                  {(todayError as Error).message || "Failed to load today's status"}
+                </p>
+              </div>
+            )}
+            {(punchInError || punchOutError) && (
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px", backgroundColor: "rgba(239,68,68,0.08)", borderRadius: "8px", border: "1px solid rgba(239,68,68,0.2)" }}>
+                <AlertCircle size={14} style={{ color: "#EF4444", flexShrink: 0 }} />
+                <p style={{ margin: 0, fontSize: "12px", color: "#EF4444" }}>
+                  {((punchInError || punchOutError) as Error).message || "Punch failed"}
+                </p>
+              </div>
+            )}
+          </>
         )}
+
+        <div style={{ textAlign: "center" }}>
+          <p style={{ margin: 0, fontSize: "26px", fontWeight: 300, color: "#E8E8E8", fontVariantNumeric: "tabular-nums" }}>
+            {currentTime ? format(currentTime, "HH:mm:ss") : "--:--:--"}
+          </p>
+          <p style={{ margin: "3px 0 0", fontSize: "12px", color: "#52525B" }}>
+            {currentTime ? format(currentTime, "EEEE, d MMMM yyyy") : ""}
+          </p>
+        </div>
       </div>
 
       {/* Period summary */}

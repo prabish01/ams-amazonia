@@ -28,7 +28,12 @@ export async function POST() {
 
     // Server-side timestamp — NEVER trust client
     const now = new Date();
-    const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // Build today's date as YYYY-MM-DD using local time, then parse as UTC midnight
+    // This ensures the stored DATE value matches the local calendar date regardless of server timezone
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    const todayDate = new Date(`${y}-${m}-${d}T00:00:00.000Z`);
 
     // Check for existing open session (punched in, not yet punched out)
     const existing = await prisma.attendance.findFirst({

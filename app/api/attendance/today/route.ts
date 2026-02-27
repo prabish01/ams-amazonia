@@ -23,7 +23,10 @@ export async function GET() {
     }
 
     const now = new Date();
-    const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const y = now.getFullYear();
+    const mo = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    const todayDate = new Date(`${y}-${mo}-${d}T00:00:00.000Z`);
 
     const attendance = await prisma.attendance.findFirst({
       where: {
