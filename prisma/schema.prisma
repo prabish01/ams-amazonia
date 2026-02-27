@@ -1,0 +1,195 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  STAFF
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum LeavePayType {
+  FULL
+  FOUR_FIFTHS
+  UNPAID
+}
+
+// ─── CORE MODELS ──────────────────────────────────────────────────────────────
+
+model User {
+  id             String         @id @default(cuid())
+  email          String         @unique
+  name           String
+  phone          String?
+  avatarUrl      String?
+  role           Role           @default(STAFF)
+  employmentType EmploymentType @default(FULL_TIME)
+  hireDate       DateTime
+  isActive       Boolean        @default(true)
+  restaurantId   String?
+  restaurant     Restaurant?    @relation(fields: [restaurantId], references: [id])
+  categoryId     String?
+  staffCategory  StaffCategory? @relation(fields: [categoryId], references: [id])
+  attendances    Attendance[]
+  leaveRequests  LeaveRequest[]
+  leaveBalances  LeaveBalance[]
+  salaryRates    SalaryRate[]
+  auditLogs      AuditLog[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model Restaurant {
+  id            String          @id @default(cuid())
+  name          String
+  address       String?
+  cuisineType   String?
+  description   String?
+  logoUrl       String?
+  isActive      Boolean         @default(true)
+  staff         User[]
+  categories    StaffCategory[]
+  attendances   Attendance[]
+  leaveRequests LeaveRequest[]
+  salaryRates   SalaryRate[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model StaffCategory {
+  id           String       @id @default(cuid())
+  name         String
+  description  String?
+  restaurantId String
+  restaurant   Restaurant   @relation(fields: [restaurantId], references: [id])
+  staff        User[]
+  salaryRates  SalaryRate[]
+  createdAt    DateTime     @default(now())
+}
+
+model Attendance {
+  id                 String     @id @default(cuid())
+  staffId            String
+  staff              User       @relation(fields: [staffId], references: [id])
+  restaurantId       String
+  restaurant         Restaurant @relation(fields: [restaurantId], references: [id])
+  date               DateTime   @db.Date
+  entryTime          DateTime
+  exitTime           DateTime?
+  durationMinutes    Int?
+  isManualCorrection Boolean    @default(false)
+  correctedBy        String?
+  correctionNote     String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  @@index([staffId, date])
+  @@index([restaurantId, date])
+}
+
+model LeaveCategory {
+  id             String         @id @default(cuid())
+  code           String         @unique
+  name           String
+  description    String?
+  isStatutory    Boolean        @default(false)
+  isPaid         Boolean        @default(true)
+  payType        LeavePayType   @default(FULL)
+  maxDaysPerYear Int?
+  isCustom       Boolean        @default(false)
+  createdBy      String?
+  isActive       Boolean        @default(true)
+  leaveRequests  LeaveRequest[]
+  leaveBalances  LeaveBalance[]
+  createdAt      DateTime       @default(now())
+}
+
+model LeaveRequest {
+  id            String        @id @default(cuid())
+  staffId       String
+  staff         User          @relation(fields: [staffId], references: [id])
+  restaurantId  String
+  restaurant    Restaurant    @relation(fields: [restaurantId], references: [id])
+  categoryId    String
+  category      LeaveCategory @relation(fields: [categoryId], references: [id])
+  startDate     DateTime      @db.Date
+  endDate       DateTime      @db.Date
+  daysRequested Float
+  reason        String?
+  attachmentUrl String?
+  status        LeaveStatus   @default(PENDING)
+  reviewedBy    String?
+  reviewNote    String?
+  reviewedAt    DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([staffId])
+  @@index([restaurantId, status])
+}
+
+model LeaveBalance {
+  id         String        @id @default(cuid())
+  staffId    String
+  staff      User          @relation(fields: [staffId], references: [id])
+  categoryId String
+  category   LeaveCategory @relation(fields: [categoryId], references: [id])
+  year       Int
+  allocated  Float
+  used       Float         @default(0)
+  pending    Float         @default(0)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@unique([staffId, categoryId, year])
+}
+
+model SalaryRate {
+  id            String         @id @default(cuid())
+  restaurantId  String
+  restaurant    Restaurant     @relation(fields: [restaurantId], references: [id])
+  staffId       String?
+  staff         User?          @relation(fields: [staffId], references: [id])
+  categoryId    String?
+  category      StaffCategory? @relation(fields: [categoryId], references: [id])
+  hourlyRate    Decimal        @db.Decimal(10, 2)
+  effectiveFrom DateTime       @db.Date
+  effectiveTo   DateTime?      @db.Date
+  createdBy     String
+  createdAt     DateTime       @default(now())
+
+  @@index([restaurantId])
+  @@index([staffId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String
+  oldValue   Json?
+  newValue   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
