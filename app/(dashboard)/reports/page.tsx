@@ -2,7 +2,9 @@
 
 import React, { useState } from "react";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths } from "date-fns";
-import { BarChart3, Download, FileText, ChevronDown } from "lucide-react";
+import { BarChart3, Download, FileText, FileSpreadsheet } from "lucide-react";
+import { exportReportPDF } from "@/lib/export-pdf";
+import { exportReportExcel } from "@/lib/export-excel";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -94,6 +96,15 @@ export default function ReportsPage() {
     onError: () => toast.error("Failed to generate report"),
   });
 
+  const { start, end } = getPeriodDates(period, customStart, customEnd);
+
+  const exportContext = {
+    period: { start, end },
+    reportType,
+    restaurantName: restaurants?.find((r) => r.id === selectedRestaurantId)?.name,
+    generatedBy: auth?.name,
+  };
+
   const handleExportCSV = () => {
     if (!reportData.length) return;
     const headers = ["Staff", "Total Hours", "Regular Hrs", "Overtime Hrs", "Rate (HKD)", "Gross Earnings", "Leave Pay", "Total Payable", "Leave Days"];
@@ -120,10 +131,24 @@ export default function ReportsPage() {
   };
 
   const handleExportPDF = () => {
-    toast.info("PDF export coming soon");
+    if (!reportData.length) return;
+    try {
+      exportReportPDF({ reportData, ...exportContext });
+      toast.success("PDF exported");
+    } catch {
+      toast.error("Failed to export PDF");
+    }
   };
 
-  const { start, end } = getPeriodDates(period, customStart, customEnd);
+  const handleExportExcel = () => {
+    if (!reportData.length) return;
+    try {
+      exportReportExcel({ reportData, ...exportContext });
+      toast.success("Excel exported");
+    } catch {
+      toast.error("Failed to export Excel");
+    }
+  };
 
   const reportTypeOptions = [
     { value: "individual", label: "Individual Staff" },
@@ -238,7 +263,10 @@ export default function ReportsPage() {
                 <Button variant="secondary" size="sm" onClick={handleExportCSV} iconLeft={<Download size={13} />}>
                   CSV
                 </Button>
-                <Button variant="secondary" size="sm" onClick={handleExportPDF} iconLeft={<Download size={13} />}>
+                <Button variant="secondary" size="sm" onClick={handleExportExcel} iconLeft={<FileSpreadsheet size={13} />}>
+                  Excel
+                </Button>
+                <Button variant="secondary" size="sm" onClick={handleExportPDF} iconLeft={<FileText size={13} />}>
                   PDF
                 </Button>
               </div>
