@@ -48,12 +48,25 @@ export function useStaffMember(id: string) {
 interface CreateStaffData {
   name: string;
   email: string;
+  nickname?: string;
   phone?: string;
+  hkid?: string;
+  bankName?: string;
+  bankCode?: string;
+  bankAccountNumber?: string;
   role?: "ADMIN" | "STAFF";
   employmentType?: "FULL_TIME" | "PART_TIME";
   hireDate: string;
   restaurantId?: string;
   categoryId?: string;
+  // Payroll fields
+  staffNumber?: string | null;
+  autopayDay?: number | null;
+  monthlySalary?: number | null;
+  foodAllowance?: number | null;
+  incentive?: number | null;
+  monthlyDeduction?: number | null;
+  monthlyAdjustment?: number | null;
 }
 
 async function createStaff(data: CreateStaffData): Promise<User> {

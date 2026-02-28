@@ -6,6 +6,7 @@ import { ChevronDown } from "lucide-react";
 interface SelectOption {
   value: string;
   label: string;
+  disabled?: boolean;
 }
 
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
@@ -79,7 +80,8 @@ export function Select({
             <option
               key={opt.value}
               value={opt.value}
-              style={{ backgroundColor: "#1A1A1E", color: "#E8E8E8" }}
+              disabled={opt.disabled}
+              style={{ backgroundColor: "#1A1A1E", color: opt.disabled ? "#52525B" : "#E8E8E8" }}
             >
               {opt.label}
             </option>

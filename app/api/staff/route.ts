@@ -63,7 +63,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, email, phone, role, employmentType, hireDate, restaurantId, categoryId } = body;
+    const {
+      name, email, nickname, phone, hkid, bankName, bankCode, bankAccountNumber,
+      role, employmentType, hireDate, restaurantId, categoryId,
+      // Payroll fields
+      staffNumber, autopayDay, monthlySalary, foodAllowance, incentive, monthlyDeduction, monthlyAdjustment,
+    } = body;
 
     if (!name || !email || !hireDate) {
       return NextResponse.json({ error: "Name, email, and hire date are required" }, { status: 400 });
@@ -82,12 +87,25 @@ export async function POST(request: NextRequest) {
       data: {
         name,
         email,
-        phone,
+        nickname: nickname || null,
+        phone: phone || null,
+        hkid: hkid || null,
+        bankName: bankName || null,
+        bankCode: bankCode || null,
+        bankAccountNumber: bankAccountNumber || null,
         role: role || "STAFF",
         employmentType: employmentType || "FULL_TIME",
         hireDate: new Date(hireDate),
         restaurantId: targetRestaurantId,
-        categoryId,
+        categoryId: categoryId || null,
+        // Payroll fields
+        staffNumber: staffNumber || null,
+        autopayDay: autopayDay ? Number(autopayDay) : null,
+        monthlySalary: monthlySalary ? Number(monthlySalary) : null,
+        foodAllowance: foodAllowance ? Number(foodAllowance) : null,
+        incentive: incentive ? Number(incentive) : null,
+        monthlyDeduction: monthlyDeduction ? Number(monthlyDeduction) : null,
+        monthlyAdjustment: monthlyAdjustment ? Number(monthlyAdjustment) : null,
       },
       include: {
         restaurant: { select: { id: true, name: true } },

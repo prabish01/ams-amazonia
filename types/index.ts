@@ -7,8 +7,21 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  nickname?: string | null;
   phone?: string | null;
   avatarUrl?: string | null;
+  hkid?: string | null;
+  bankName?: string | null;
+  bankCode?: string | null;
+  bankAccountNumber?: string | null;
+  // Payroll fields
+  staffNumber?: string | null;
+  autopayDay?: number | null;
+  foodAllowance?: string | null;
+  monthlySalary?: string | null;
+  incentive?: string | null;
+  monthlyDeduction?: string | null;
+  monthlyAdjustment?: string | null;
   role: Role;
   employmentType: EmploymentType;
   hireDate: string;

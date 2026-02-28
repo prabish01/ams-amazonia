@@ -175,13 +175,25 @@ async function main() {
     }
     console.log(`  ✓ Categories & salary rates set`);
 
+    // Payroll lookup table by category
+    const FT_PAYROLL: Record<string, { monthlySalary: number; foodAllowance: number }> = {
+      Manager:   { monthlySalary: 28000, foodAllowance: 1500 },
+      Chef:      { monthlySalary: 22000, foodAllowance: 1200 },
+      Server:    { monthlySalary: 18000, foodAllowance: 800  },
+      Bartender: { monthlySalary: 20000, foodAllowance: 1000 },
+      Host:      { monthlySalary: 16000, foodAllowance: 600  },
+    };
+
     // Staff
+    let staffSeq = 1;
     for (const s of rDef.staff) {
       const hireDate = new Date(
         randInt(2022, 2024),
         randInt(0, 11),
         randInt(1, 28)
       );
+      const payroll = FT_PAYROLL[s.cat] ?? null;
+      const staffNumber = String(staffSeq++).padStart(3, "0");
 
       const user = await prisma.user.create({
         data: {
@@ -194,6 +206,10 @@ async function main() {
           isActive: true,
           restaurantId: restaurant.id,
           categoryId: catMap[s.cat],
+          staffNumber,
+          autopayDay: 7,
+          monthlySalary: s.emp === "FULL_TIME" && payroll ? payroll.monthlySalary : undefined,
+          foodAllowance:  s.emp === "FULL_TIME" && payroll ? payroll.foodAllowance  : undefined,
         },
       });
 

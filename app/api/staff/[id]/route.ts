@@ -58,22 +58,22 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     const body = await request.json();
     const {
-      name,
-      phone,
-      role,
-      employmentType,
-      hireDate,
-      restaurantId,
-      categoryId,
-      isActive,
-      avatarUrl,
+      name, nickname, phone, hkid, bankName, bankCode, bankAccountNumber,
+      role, employmentType, hireDate, restaurantId, categoryId, isActive, avatarUrl,
+      // Payroll fields
+      staffNumber, autopayDay, monthlySalary, foodAllowance, incentive, monthlyDeduction, monthlyAdjustment,
     } = body;
 
     const updated = await prisma.user.update({
       where: { id },
       data: {
         ...(name && { name }),
-        ...(phone !== undefined && { phone }),
+        ...(nickname !== undefined && { nickname: nickname || null }),
+        ...(phone !== undefined && { phone: phone || null }),
+        ...(hkid !== undefined && { hkid: hkid || null }),
+        ...(bankName !== undefined && { bankName: bankName || null }),
+        ...(bankCode !== undefined && { bankCode: bankCode || null }),
+        ...(bankAccountNumber !== undefined && { bankAccountNumber: bankAccountNumber || null }),
         ...(role && { role }),
         ...(employmentType && { employmentType }),
         ...(hireDate && { hireDate: new Date(hireDate) }),
@@ -81,6 +81,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         ...(categoryId !== undefined && { categoryId }),
         ...(isActive !== undefined && { isActive }),
         ...(avatarUrl !== undefined && { avatarUrl }),
+        // Payroll fields
+        ...(staffNumber !== undefined && { staffNumber: staffNumber || null }),
+        ...(autopayDay !== undefined && { autopayDay: autopayDay ? Number(autopayDay) : null }),
+        ...(monthlySalary !== undefined && { monthlySalary: monthlySalary ? Number(monthlySalary) : null }),
+        ...(foodAllowance !== undefined && { foodAllowance: foodAllowance ? Number(foodAllowance) : null }),
+        ...(incentive !== undefined && { incentive: incentive ? Number(incentive) : null }),
+        ...(monthlyDeduction !== undefined && { monthlyDeduction: monthlyDeduction ? Number(monthlyDeduction) : null }),
+        ...(monthlyAdjustment !== undefined && { monthlyAdjustment: monthlyAdjustment ? Number(monthlyAdjustment) : null }),
       },
       include: {
         restaurant: { select: { id: true, name: true } },

@@ -35,26 +35,40 @@ enum LeavePayType {
 // ─── CORE MODELS ──────────────────────────────────────────────────────────────
 
 model User {
-  id             String         @id @default(cuid())
-  email          String         @unique
-  name           String
-  phone          String?
-  avatarUrl      String?
-  role           Role           @default(STAFF)
-  employmentType EmploymentType @default(FULL_TIME)
-  hireDate       DateTime
-  isActive       Boolean        @default(true)
-  restaurantId   String?
-  restaurant     Restaurant?    @relation(fields: [restaurantId], references: [id])
-  categoryId     String?
-  staffCategory  StaffCategory? @relation(fields: [categoryId], references: [id])
-  attendances    Attendance[]
-  leaveRequests  LeaveRequest[]
-  leaveBalances  LeaveBalance[]
-  salaryRates    SalaryRate[]
-  auditLogs      AuditLog[]
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id                String         @id @default(cuid())
+  email             String         @unique
+  name              String
+  nickname          String?
+  phone             String?
+  avatarUrl         String?
+  hkid              String?
+  bankName          String?
+  bankCode          String?
+  bankAccountNumber String?
+  // ── Payroll fields ───────────────────────────────────────────────────────
+  staffNumber       String?
+  autopayDay        Int?
+  foodAllowance     Decimal?       @db.Decimal(10, 2)
+  monthlySalary     Decimal?       @db.Decimal(10, 2)
+  incentive         Decimal?       @db.Decimal(10, 2)
+  monthlyDeduction  Decimal?       @db.Decimal(10, 2)
+  monthlyAdjustment Decimal?       @db.Decimal(10, 2)
+  // ─────────────────────────────────────────────────────────────────────────
+  role              Role           @default(STAFF)
+  employmentType    EmploymentType @default(FULL_TIME)
+  hireDate          DateTime
+  isActive          Boolean        @default(true)
+  restaurantId      String?
+  restaurant        Restaurant?    @relation(fields: [restaurantId], references: [id])
+  categoryId        String?
+  staffCategory     StaffCategory? @relation(fields: [categoryId], references: [id])
+  attendances       Attendance[]
+  leaveRequests     LeaveRequest[]
+  leaveBalances     LeaveBalance[]
+  salaryRates       SalaryRate[]
+  auditLogs         AuditLog[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 }
 
 model Restaurant {
