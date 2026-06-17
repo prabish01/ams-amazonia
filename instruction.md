@@ -2,8 +2,8 @@
 
 > **Company:** Amazonia Group (Hong Kong)
 > **Domain:** Multi-restaurant HR, Attendance, Leave & Payroll Management
-> **Stack:** Next.js 15 (App Router) · TypeScript · Prisma ORM · Supabase (PostgreSQL) · TanStack Query v5 · Tailwind CSS v4 · Shadcn/UI
-> **Target:** Mobile-first, responsive, modern minimal corporate UI
+> **Stack:** Next.js 16 (App Router) · TypeScript · Prisma 7 · Supabase (PostgreSQL + Auth) · TanStack Query v5 · Custom UI · Recharts
+> **Target:** Mobile-first, responsive, modern minimal dark-mode corporate UI
 
 ---
 
@@ -24,21 +24,23 @@ Amazonia HR Management Suite is a centralised, role-based HR platform for a Hong
 
 | Layer         | Technology                                        | Purpose                                                               |
 | ------------- | ------------------------------------------------- | --------------------------------------------------------------------- |
-| Framework     | Next.js 15 (App Router, RSC)                      | Full-stack React framework                                            |
+| Framework     | Next.js 16.1.6 (App Router, RSC)                  | Full-stack React framework                                            |
 | Language      | TypeScript (strict mode)                          | Type safety across frontend & backend                                 |
-| ORM           | Prisma 5                                          | DB schema, migrations, type-safe queries                              |
+| ORM           | Prisma 7 + @prisma/adapter-pg                     | DB schema, migrations, type-safe queries (driver-adapter mode)        |
 | Database      | Supabase (PostgreSQL)                             | Hosted Postgres + Auth + Row-level security                           |
-| Auth          | Supabase Auth + next-auth / custom JWT middleware | Role-based session management                                         |
+| Auth          | Supabase Auth + @supabase/ssr (cookie sessions)   | Role-based session management via middleware                          |
 | Data Fetching | TanStack Query v5 (React Query)                   | All client-side data fetching, caching, mutations, optimistic updates |
-| UI Library    | Shadcn/UI + Radix UI primitives                   | Accessible, headless components                                       |
-| Styling       | Tailwind CSS v4                                   | Utility-first, dark mode, mobile-first                                |
+| UI Library    | Custom components (no Tailwind / Shadcn)          | Hand-crafted dark-mode components using inline React styles           |
+| Styling       | Inline React styles (CSS-in-JS pattern)           | Dark-mode, consistent design tokens, zero className conflicts         |
 | Forms         | React Hook Form + Zod                             | Type-safe form validation                                             |
-| Charts        | Recharts                                          | Payroll & attendance analytics                                        |
+| Charts        | Recharts v3                                       | Dashboard analytics — area, bar, line, pie charts                     |
 | Tables        | TanStack Table v8                                 | Sortable, filterable, paginated data tables                           |
-| Date          | date-fns                                          | Date arithmetic, HK locale                                            |
+| PDF Export    | jsPDF + jspdf-autotable                           | Multi-page landscape/portrait payroll PDFs                            |
+| Excel Export  | xlsx + xlsx-js-style                              | Multi-sheet styled payroll workbooks with coloured cells              |
+| Date          | date-fns v4                                       | Date arithmetic, HK locale                                            |
 | Icons         | Lucide React                                      | Consistent icon set                                                   |
 | Toast         | Sonner                                            | Non-blocking notifications                                            |
-| Deployment    | Vercel                                            | Zero-config Next.js hosting                                           |
+| Deployment    | Vercel                                            | Zero-config Next.js hosting + Prisma build script                     |
 
 ---
 
@@ -299,25 +301,39 @@ enum LeavePayType {
 // ─── CORE MODELS ──────────────────────────────────────────────────────────────
 
 model User {
-  id              String          @id @default(cuid())
-  email           String          @unique
-  name            String
-  phone           String?
-  avatarUrl       String?
-  role            Role            @default(STAFF)
-  employmentType  EmploymentType  @default(FULL_TIME)
-  hireDate        DateTime
-  isActive        Boolean         @default(true)
-  restaurantId    String?
-  restaurant      Restaurant?     @relation(fields: [restaurantId], references: [id])
-  categoryId      String?
-  staffCategory   StaffCategory?  @relation(fields: [categoryId], references: [id])
-  attendances     Attendance[]
-  leaveRequests   LeaveRequest[]
-  leaveBalances   LeaveBalance[]
-  salaryRates     SalaryRate[]
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id                   String          @id @default(cuid())
+  email                String          @unique
+  name                 String
+  nickname             String?
+  phone                String?
+  avatarUrl            String?
+  role                 Role            @default(STAFF)
+  employmentType       EmploymentType  @default(FULL_TIME)
+  hireDate             DateTime
+  isActive             Boolean         @default(true)
+  restaurantId         String?
+  restaurant           Restaurant?     @relation(fields: [restaurantId], references: [id])
+  categoryId           String?
+  staffCategory        StaffCategory?  @relation(fields: [categoryId], references: [id])
+  // Identity & banking (for payroll export)
+  hkid                 String?
+  bankName             String?
+  bankCode             String?
+  bankAccountNumber    String?
+  // Payroll config
+  staffNumber          String?
+  autopayDay           Int?
+  foodAllowance        Decimal?        @db.Decimal(10, 2)
+  monthlySalary        Decimal?        @db.Decimal(10, 2)
+  incentive            Decimal?        @db.Decimal(10, 2)
+  monthlyDeduction     Decimal?        @db.Decimal(10, 2)
+  monthlyAdjustment    Decimal?        @db.Decimal(10, 2)
+  attendances          Attendance[]
+  leaveRequests        LeaveRequest[]
+  leaveBalances        LeaveBalance[]
+  salaryRates          SalaryRate[]
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
 }
 
 model Restaurant {
@@ -439,35 +455,43 @@ model SalaryRate {
 ## 6. API Routes (Next.js App Router)
 
 ```
-/api/auth/[...nextauth]         Auth endpoints
+/api/auth/me                    GET current user (role, name, restaurantId)
+
 /api/restaurants                GET (list), POST (create)
 /api/restaurants/[id]           GET, PATCH, DELETE
 /api/restaurants/[id]/staff     GET all staff
 /api/restaurants/[id]/categories  GET, POST staff categories
 
-/api/staff                      GET, POST (create staff)
-/api/staff/[id]                 GET, PATCH, DELETE
+/api/staff                      GET (list), POST (create — includes HKID + bank fields)
+/api/staff/[id]                 GET, PATCH (edit — includes HKID + bank), DELETE
 /api/staff/[id]/attendance      GET attendance history
 /api/staff/[id]/leaves          GET leave history
 /api/staff/[id]/earnings        GET earnings summary
 
 /api/attendance/punch-in        POST (server timestamp)
 /api/attendance/punch-out       POST (server timestamp)
+/api/attendance/today           GET current day status for logged-in staff
+/api/attendance/history         GET history (start, end, staffId, limit params)
 /api/attendance/[id]            PATCH (manual correction, admin only)
 
 /api/leaves/categories          GET, POST (admin), PATCH, DELETE
 /api/leaves/requests            GET (filtered), POST (create request)
 /api/leaves/requests/[id]       GET, PATCH (approve/reject)
-/api/leaves/balance/[staffId]   GET leave balances
+/api/leaves/balance             GET leave balances for logged-in staff
 
 /api/salary/rates               GET, POST
 /api/salary/rates/[id]          PATCH, DELETE
 /api/salary/calculate           POST (calculate for a period)
 
-/api/reports/individual         POST (staff + date range)
-/api/reports/restaurant         POST (restaurant + date range)
-/api/reports/all                POST (SuperAdmin, all restaurants)
-/api/reports/export             POST (generate PDF/CSV)
+/api/reports/generate           POST (individual / restaurant / all — JSON table data)
+/api/reports/export             POST (PT payroll — PDF or Excel, 5-page/sheet)
+/api/reports/payslip            POST (monthly payslip generator)
+
+/api/dashboard/stats            GET (Admin: 14-day trend, today snapshot, staff presence)
+                                    (SuperAdmin: restaurant comparison, network trend)
+
+/api/seed                       POST { seedKey } — create demo data (public, key-gated)
+/api/setup-auth                 POST { seedKey } — bulk create Supabase auth accounts (public, key-gated)
 ```
 
 ---
@@ -626,37 +650,42 @@ export const queryKeys = {
 
 ## 12. Implementation Roadmap
 
-### Phase 1 — Foundation
+### Phase 1 — Foundation ✅ Complete
 
-1. Init Next.js project with TypeScript, Tailwind v4, Shadcn/UI
-2. Configure Supabase project (Auth + DB + Storage)
-3. Define Prisma schema, run migrations
-4. Implement auth: login, role-based middleware, session management
-5. Layout: Sidebar, topbar, mobile bottom nav
+1. ✅ Init Next.js 16 project with TypeScript, custom inline styles
+2. ✅ Configure Supabase project (Auth + DB)
+3. ✅ Define Prisma 7 schema with driver-adapter, run migrations
+4. ✅ Implement auth: login, role-based middleware, Supabase SSR sessions
+5. ✅ Layout: Sidebar, topbar, responsive shell
 
-### Phase 2 — Core Features
+### Phase 2 — Core Features ✅ Complete
 
-6. Workspace page + Restaurant CRUD (SuperAdmin)
-7. Staff management (add, edit, assign category, set employment type)
-8. Attendance: Punch in/out with server timestamp, history table
-9. Leave categories (system-defined + custom)
-10. Leave request flow (create → approve/reject)
-11. Leave balance management with HK statutory rules
+6. ✅ Restaurant CRUD (SuperAdmin)
+7. ✅ Staff management (add, edit, HKID + bank fields, assign category)
+8. ✅ Attendance: Punch in/out with server timestamp, history table
+9. ✅ Leave categories (system-defined)
+10. ✅ Leave request flow (create → approve/reject)
+11. ✅ Leave balance management with HK statutory rules
 
-### Phase 3 — Payroll
+### Phase 3 — Payroll ✅ Complete
 
-12. Salary rate configuration (restaurant/category/individual)
-13. Earnings calculation engine (hours × rate + leave pay)
-14. Staff earnings dashboard
-15. Report generation (weekly/monthly)
-16. PDF export (payslips) + CSV export
+12. ✅ Salary rate configuration (restaurant/category/individual)
+13. ✅ Earnings calculation engine (hours × rate + leave pay)
+14. ✅ Report generation (weekly PT / monthly FT)
+15. ✅ PT Payroll PDF export (5 pages, jsPDF landscape)
+16. ✅ PT Payroll Excel export (5 sheets, xlsx-js-style coloured cells)
+17. ✅ Monthly payslip generator (3-up per A4, MPF included)
 
-### Phase 4 — Polish
+### Phase 4 — Analytics & Polish 🔄 In Progress
 
-17. Admin notification system (leave requests, corrections)
-18. Mobile-first responsiveness audit
-19. Performance optimization (query prefetching, ISR)
-20. E2E testing with Playwright
+18. ✅ Professional dashboard with live charts (Recharts)
+    - Staff: 30-day hours bar chart, quick stats, leave progress bars
+    - Admin: 14-day attendance trend, today's snapshot donut, staff presence list
+    - SuperAdmin: restaurant comparison, network trend line chart
+19. ⬜ Admin notification system (leave requests, corrections)
+20. ⬜ Mobile-first responsiveness audit
+21. ⬜ Full-Time payroll export
+22. ⬜ E2E testing with Playwright
 
 ---
 
@@ -817,7 +846,90 @@ Leave pay (included in weekly grouping):
 
 ---
 
-_Last updated: February 2026 | v2 Payroll Export added | Compliance basis: HK Employment Ordinance Cap. 57 (as amended up to 2025)_
+---
+
+## 17. Professional Dashboard Analytics (v3 — Implemented Feb 2026)
+
+### 17.1 Overview
+
+The dashboard renders role-specific live charts and stats powered by a dedicated `/api/dashboard/stats` endpoint and Recharts v3. All data is fetched via the `useDashboardStats()` TanStack Query hook (1-minute stale time, 2-minute refetch interval).
+
+### 17.2 Staff View
+
+| Widget | Type | Data Source |
+|--------|------|-------------|
+| Punch In / Out button | Interactive | `useTodayAttendance` + `usePunchIn/Out` |
+| Quick Stats row | Stat tiles | Computed from 30-day `useAttendanceHistory` |
+| My Work Hours | Bar chart | 30-day history; bars coloured blue (≤8h) / orange (OT >8h) |
+| Leave Balances | Progress cards | `useLeaveBalance`; progress bar green→yellow→red |
+
+**Quick Stats computed client-side from attendance history:**
+- Hours This Week (Mon–Sun)
+- Days Attended This Month
+- OT Hours This Month (minutes > 480 per day)
+
+### 17.3 Admin View
+
+| Widget | Type | Data Source |
+|--------|------|-------------|
+| Total Staff | Stat card | `/api/dashboard/stats` |
+| Present Today | Stat card + trend | `/api/dashboard/stats` |
+| On Leave | Stat card | `/api/dashboard/stats` |
+| Pending Leaves | Stat card | `/api/dashboard/stats` |
+| 14-Day Attendance Trend | Area chart | Rate % per day, gradient fill |
+| Today's Snapshot | Donut chart | Present / On Leave / Absent with center count |
+| Today's Staff | Presence list | Name · clock-in/out · duration · status badge |
+
+### 17.4 SuperAdmin View
+
+| Widget | Type | Data Source |
+|--------|------|-------------|
+| Restaurants | Stat card | `useRestaurants` |
+| Total Staff | Stat card | `/api/dashboard/stats` |
+| Present Today | Stat card + trend | `/api/dashboard/stats` |
+| Pending Leaves | Stat card | `/api/dashboard/stats` |
+| Restaurant Comparison | Grouped bar chart | Total Staff vs Present vs On Leave per restaurant |
+| Live Restaurant Status | Progress cards | Attendance rate % with coloured progress bar |
+| 14-Day Network Trend | Multi-line chart | One line per restaurant (colour-coded) |
+
+### 17.5 Dashboard Stats API
+
+**Endpoint:** `GET /api/dashboard/stats`
+**Auth:** ADMIN or SUPER_ADMIN only
+
+- Uses batch `Promise.all` queries — no N+1 loops
+- Attendance grouped by date in JS (single 14-day range query)
+- Date matching uses UTC midnight pattern: `new Date(\`${y}-${m}-${d}T00:00:00.000Z\`)` (consistent with `@db.Date` fields)
+- Leave overlap check: `startDate <= endOfToday AND endDate >= startOfToday`
+
+### 17.6 Implementation Files
+
+| File | Purpose |
+|------|---------|
+| `app/api/dashboard/stats/route.ts` | Stats API — ADMIN and SUPER_ADMIN branches |
+| `hooks/use-dashboard.ts` | `useDashboardStats()` TanStack Query hook |
+| `app/(dashboard)/dashboard/page.tsx` | Dashboard page — StaffDashboard, AdminDashboard, SuperAdminDashboard |
+
+### 17.7 Chart Colour Reference
+
+```
+Present / Active:   #22C55E  (green)
+On Leave:           #EAB308  (yellow)
+Absent / Neutral:   #3F3F46  (dark zinc)
+Regular Hours:      #3B82F6  (blue)
+Overtime:           #F5A623  (orange — brand accent)
+Restaurant 1:       #F5A623  (orange)
+Restaurant 2:       #3B82F6  (blue)
+Restaurant 3:       #22C55E  (green)
+Restaurant 4:       #A855F7  (purple)
+Chart grid:         #27272A
+Axis labels:        #52525B
+Tooltip bg:         #18181B
+```
+
+---
+
+_Last updated: February 2026 | v3 Professional Dashboard added | v2 Payroll Export | Compliance basis: HK Employment Ordinance Cap. 57 (as amended up to 2025)_
 
 Sources:
 
